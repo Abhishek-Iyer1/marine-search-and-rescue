@@ -33,5 +33,37 @@ def visualize():
     # Display a given image with its annotations
     index = int(sys.argv[1]) - 1
 
+    colors = {
+        1: (0,255,0), # Swimmer 
+        2: (255,0,0), # Floater
+        3: (51,255,255), # Boat
+        4: (255,255,0), # Swimmer on Boat
+        5: (255, 102, 255), # Floater on Boat
+        6: (255, 153, 51)} # Life Jacket
+    
+    # If input is within the valid range, proceed
+    if (index >= 0) and (index <= len(mapping)):
+        
+        # Load image as an np.array
+        image = np.array(Image.open(os.path.join(data_path, f_names[mapping[index]])))
+        
+        # Iterate over all annotations
+        for an in annotations_swimmers['annotations']:
+            # If image_id same as the image we are looking for, fetch bbox
+            if an['image_id'] == mapping[index]:
+                bbox = an['bbox']
+                category_id = an['category_id']
+                x1 = bbox[0]
+                y1 = bbox[1]
+                x2 = x1 + bbox[2]
+                y2 = y1 + bbox[3]
+                # Draw bounding box on image
+                cv2.rectangle(image, (x1, y1), (x2, y2), colors[category_id], 5)
+        
+        # Display the image after all the bounding boxes have been stored
+        plt.imshow(image)
+        plt.axis("off")
+        plt.show()
+        
 if __name__ == '__main__':
     visualize()
