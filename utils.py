@@ -48,10 +48,86 @@ def parse_annotations(annotation_path: str, image_dir: str):
 
                 category_id = ann["category_id"]
 
-                groundtruth_bboxes.append(bbox.tolist())
-                groundtruth_categories.append(category_id)
+                if category_id in temp_labels.keys():
+                    temp_labels[category_id].append(bbox.tolist())
+                else:
+                    temp_labels[category_id] = [bbox.tolist()]
 
-        bboxes_all.append(torch.Tensor(groundtruth_bboxes))
-        classes_all.append(groundtruth_categories)
+        labels["all"].append(temp_labels)
 
-    return bboxes_all, classes_all, img_paths
+    return partition, labels
+
+def split_ids(partition: dict[str, list], labels: dict[str, dict], split: tuple[float, float, float]) -> dict[str, list]:
+
+    train_index = (0, round(split[0] * len(partition["all"])))
+    validation_index = (train_index[1], train_index[1] + round(split[1] * len(partition["all"])))
+    test_index = (validation_index[1], len(partition["all"]))
+
+    # Splitting all the file paths by train:val:test split
+    partition["train"] = partition["all"][train_index[0] : train_index[1]]
+    partition["validation"] = partition["all"][validation_index[0] : validation_index[1]]
+    partition["test"] = partition["all"][test_index[0]: test_index[1]]
+
+    labels["train"] = labels["all"][train_index[0]: train_index[1]]
+    labels["validation"] = labels["all"][validation_index[0] : validation_index[1]]
+    labels["test"] = labels["all"][test_index[0] : test_index[1]]
+
+    return partition, labels
+
+def display(image_ids, label_ids, index, resized_img_shape, orig_img_shape):
+    
+    img_h, img_w = resized_img_shape
+    orig_img_h, orig_img_w, _ = orig_img_shape
+
+    w_scale = img_w/orig_img_w
+    h_scale = img_h/orig_img_h
+
+    colors = {
+        1: (0,255,0), # Swimmer 
+        2: (255,0,0), # Floater
+        3: (51,255,255), # Boat
+        4: (255,255,0), # Swimmer on Boat
+        5: (255, 102, 255), # Floater on Boat
+        6: (255, 153, 51)} # Life Jacket
+    
+    image = imread(image_ids[index - 1])
+    # image = resize(image, img_shape)
+
+    for key, value in list(label_ids[index - 1].items()):
+        for bbox in value:
+            print(bbox)
+            # Resize BBOX as per image here
+            cv2.rectangle(image, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), colors[int(key)], thickness=2)
+    
+    plt.imshow(image)
+    plt.axis("on")
+    plt.show()
+
+def load_data(save_partition_path, save_labels_path, annotations_path, img_dir_path, resized_img_shape, orig_img_shape, split = (0.7, 0.1, 0.2), force_overwrite=False):
+
+    if (force_overwrite) or (not os.path.exists(save_partition_path)) or (not os.path.exists(save_labels_path)):
+        print(f"Not found save file path or argument force_overwrite = True. Generating data again...")
+        
+        partition_ids, label_ids = parse_annotations(annotation_path=annotations_path, image_dir=img_dir_path)
+        
+        partition_ids, label_ids = split_ids(partition_ids, label_ids, split)
+
+        with open(save_partition_path, "w") as json_partition_obj:
+            json.dump(partition_ids, json_partition_obj)
+
+        with open(save_labels_path, "w") as json_labels_obj:
+            json.dump(label_ids, json_labels_obj)
+
+    else:
+        print(f"Found save file path and argument force_overwrite = False. Fetching saved data...")
+        
+        with open(save_partition_path, "r") as json_partition_obj:
+            partition_ids = json.load(json_partition_obj)
+        
+        with open(save_labels_path, "r") as json_labels_obj:
+            label_ids = json.load(json_labels_obj)
+
+    print(f"Length of Data: {len(partition_ids['all'])}, Length of Train: {len(partition_ids['train'])}, Length of Val: {len(partition_ids['validation'])}, Length of Test: {len(partition_ids['test'])}")
+    print(f"Length of Data: {len(label_ids['all'])}, Length of Train: {len(label_ids['train'])}, Length of Val: {len(label_ids['validation'])}, Length of Test: {len(label_ids['test'])}")
+
+    return partition_ids, label_ids
