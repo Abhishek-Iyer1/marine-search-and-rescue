@@ -2,9 +2,11 @@ import json
 import os
 import torch
 
-def parse_annotations(annotation_path: str, image_dir: str, resized_img_size: tuple[int, int], original_img_size: tuple[int, int]):
+from tqdm import tqdm 
+
+def parse_annotations(annotation_path: str, image_dir: str, resized_img_size: tuple[int, int], original_img_shape: tuple[int, int, int]):
     img_h, img_w = resized_img_size
-    orig_img_h, orig_img_w = original_img_size
+    orig_img_h, orig_img_w, _ = original_img_shape
 
     w_scale = img_w/orig_img_w
     h_scale = img_h/orig_img_h
@@ -17,7 +19,8 @@ def parse_annotations(annotation_path: str, image_dir: str, resized_img_size: tu
     with open(annotation_path) as json_file:
         annotations: dict = json.load(json_file)
 
-    for file in os.listdir(image_dir):
+    print("Checking for annotations, collecting file paths...")
+    for file in tqdm(os.listdir(image_dir)):
         image_path = os.path.join(image_dir, file)
         img_paths.append(image_path)
         img_number = file.split(".")[0]
