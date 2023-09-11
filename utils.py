@@ -3,28 +3,30 @@ import os
 import torch
 import cv2
 import matplotlib.pyplot as plt
+import numpy as np
 
 from tqdm import tqdm
 from skimage.io import imread
 from skimage.transform import resize
+from torch.nn.utils.rnn import pad_sequence
 
 def parse_annotations(annotation_path: str, image_dir: str):
 
-    partition: dict = {
+    partition: dict[str, list] = {
         "all": [],
         "train": [],
         "validation": [],
         "test": []
     }
 
-    bboxes_all: dict = {
+    bboxes_all: dict[str, list] = {
         "all": [],
         "train": [],
         "validation": [],
         "test": []
     }
 
-    categories_all: dict = {
+    categories_all: dict[str, list] = {
         "all": [],
         "train": [],
         "validation": [],
@@ -53,7 +55,7 @@ def parse_annotations(annotation_path: str, image_dir: str):
                 x2 = x1 + w
                 y2 = y1 + h
 
-                bbox = torch.Tensor([x1, y1, x2, y2])
+                bbox = torch.IntTensor([x1, y1, x2, y2])
 
                 category_id = ann["category_id"]
 
@@ -151,3 +153,15 @@ def load_data(save_partition_path, save_bboxes_path, save_categories_path, annot
     print(f"Length of Categories: {len(categories_all['all'])}, Length of Train: {len(categories_all['train'])}, Length of Val: {len(categories_all['validation'])}, Length of Test: {len(categories_all['test'])}")
 
     return partition_ids, bboxes_all, categories_all
+
+def custom_collate(data):
+    img_inputs: list[torch.Tensor] = [d[0] for d in data]
+    categories: list[torch.Tensor] = [d[1] for d in data]
+    bboxes: list[torch.Tensor] = [d[2] for d in data]
+
+    img_batch = pad_sequence(img_inputs, batch_first=True)
+    categories_batch = pad_sequence(categories, batch_first=True)
+    bboxes_batch = pad_sequence(bboxes, batch_first=True)
+
+    print(img_batch.size(), categories_batch.size(), bboxes_batch.size())
+    return img_batch, categories_batch, bboxes_batch
