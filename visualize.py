@@ -31,7 +31,7 @@ def visualize():
         annotations_swimmers = json.load(json_file_swim)
 
     # Display a given image with its annotations
-    index = int(sys.argv[1]) - 1
+    index = int(sys.argv[1])
 
     colors = {
         1: (0,255,0), # Swimmer 
@@ -47,10 +47,14 @@ def visualize():
         # Load image as an np.array
         image = np.array(Image.open(os.path.join(data_path, f_names[mapping[index]])))
         
+        print(annotations_swimmers["images"][:10])
         # Iterate over all annotations
         for an in annotations_swimmers['annotations']:
             # If image_id same as the image we are looking for, fetch bbox
-            if an['image_id'] == mapping[index]:
+            if an['image_id'] == mapping[index - 1]:
+                print(an)
+                print(annotations_swimmers["images"][an["image_id"]]["file_name"])
+                print(mapping[0:3])
                 bbox = an['bbox']
                 category_id = an['category_id']
                 x1 = bbox[0]
@@ -58,7 +62,7 @@ def visualize():
                 x2 = x1 + bbox[2]
                 y2 = y1 + bbox[3]
                 # Draw bounding box on image
-                cv2.rectangle(image, (x1, y1), (x2, y2), colors[category_id], 5)
+                cv2.rectangle(image, (x1, y1), (x2, y2), colors[category_id], 2)
         
         # Display the image after all the bounding boxes have been stored
         plt.imshow(image)
