@@ -176,3 +176,19 @@ def display_batch(batch: tuple):
         plt.imshow(img)
         plt.axis("off")
     plt.show()
+
+def draw_bb(img: torch.Tensor, classes: torch.IntTensor, bboxes: torch.IntTensor) -> torch.Tensor:
+    colors = {
+        0: (0,0,0), # Dummy color for all the padded values
+        1: (0,255,0), # Swimmer 
+        2: (255,0,0), # Floater
+        3: (51,255,255), # Boat
+        4: (255,255,0), # Swimmer on Boat
+        5: (255, 102, 255), # Floater on Boat
+        6: (255, 153, 51)} # Life Jacket
+    
+    img = np.array(img.permute(1,2,0)).copy()
+    for bb, c in list(zip(bboxes.tolist(), classes.tolist())):
+        cv2.rectangle(img, (bb[0], bb[1]), (bb[2], bb[3]), colors[c], thickness=2)
+
+    return img
