@@ -165,3 +165,14 @@ def custom_collate(data):
 
     print(img_batch.size(), categories_batch.size(), bboxes_batch.size())
     return img_batch, categories_batch, bboxes_batch
+
+def display_batch(batch: tuple):
+    img_batch, classes_batch, bboxes_batch = batch
+
+    fig = plt.figure(figsize=(12, 8))
+    for i in range(0, len(img_batch)):
+        fig.add_subplot(1, len(img_batch), i+1)
+        img = draw_bb(img_batch[i], classes_batch[i], bboxes_batch[i])
+        plt.imshow(img)
+        plt.axis("off")
+    plt.show()
