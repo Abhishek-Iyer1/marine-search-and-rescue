@@ -29,8 +29,6 @@ class MOTDataset(Dataset):
     def load_data(self, index) -> tuple[torch.Tensor, dict]:
         
         img_path = self.image_ids[index]
-        class_labels = []
-        bbox_labels = []
 
         # Check if image path is valid, otherwise skip
         if (img_path) and (os.path.exists(img_path)):
@@ -42,18 +40,13 @@ class MOTDataset(Dataset):
             # convert image to torch tensor and reshape it so channels come first
             img_tensor = torch.from_numpy(img).permute(2, 0, 1)
             # img_data_stacked = torch.stack(self.img_data_full, dim=0)
-            label: dict = self.label_ids[index - 1] # -1 for offset correction
-            print(f"Label Items: {label.items()}")
-            for k, v in label.items():
-                print(int(k), v)
-                class_labels.append(int(k))
-                bbox_labels.append(v)
-            
-            class_labels = torch.Tensor(class_labels)
-            bbox_labels = torch.Tensor(bbox_labels)
-            print(f"Class Labels: {class_labels}\nBbox Labels: {bbox_labels}\nImg Size: {img_tensor.size()}\nClass Labels Size: {class_labels.size()}\nBbox Labels Size: {bbox_labels.size()}")
-            # class_labels_padded = pad_sequence(torch.Tensor(class_labels))
-            # bbox_labels_padded = pad_sequence(torch.Tensor(bbox_labels))
+            class_label = torch.IntTensor(self.categories[index - 1])
+            bbox_label = torch.IntTensor(self.bboxes[index - 1])
+
+            # print(f"Class Labels: {class_label}\nBbox Labels: {bbox_label}\nImg Size: {img_tensor.size()}\nClass Labels Size: {class_label.size()}\nBbox Labels Size: {bbox_label.size()}")
+            # class_labels_padded = pad_sequence(class_label, batch_first=True)
+            # bbox_labels_padded = pad_sequence(bbox_label, batch_first=True)
+            # print(f"Class Labels: {class_label}\nBbox Labels: {bbox_label}\nImg Path: {img_path}\nClass Labels Padded Size: {class_label.size()}\nBbox Labels Padded Size: {bbox_label.size()}")
 
 
-        return img_tensor, class_labels, bbox_labels
+        return img_tensor, class_label, bbox_label
