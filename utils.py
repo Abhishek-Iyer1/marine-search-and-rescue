@@ -4,11 +4,14 @@ import torch
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
+import matplotlib.patches as patches
 
 from tqdm import tqdm
 from skimage.io import imread
 from skimage.transform import resize
 from torch.nn.utils.rnn import pad_sequence
+from torch.nn.functional import pad
+from torchvision import ops
 
 def parse_annotations(annotation_path: str, image_dir: str):
 
@@ -55,12 +58,17 @@ def parse_annotations(annotation_path: str, image_dir: str):
                 x2 = x1 + w
                 y2 = y1 + h
 
-                bbox = torch.IntTensor([x1, y1, x2, y2])
+                bbox = [x1, y1, x2, y2]
 
                 category_id = ann["category_id"]
 
-                category_labels.append(int(category_id))
-                bbox_labels.append(bbox.tolist())
+                if len(bbox) > 0:
+                    category_labels.append([category_id])
+                    bbox_labels.append(bbox)
+        
+        if len(bbox_labels) == 0:
+            category_labels.append([0])
+            bbox_labels.append([0,0,0,0])
 
         bboxes_all["all"].append(bbox_labels)
         categories_all["all"].append(category_labels)
@@ -88,35 +96,35 @@ def split_ids(partition: dict[str, list], bboxes_all: dict[str, list], categorie
 
     return partition, bboxes_all, categories_all
 
-def display(image_ids, bboxes_all, categories_all, index, resized_img_shape, orig_img_shape):
+# def display(image_ids, bboxes_all, categories_all, index, resized_img_shape, orig_img_shape):
     
-    img_h, img_w = resized_img_shape
-    orig_img_h, orig_img_w, _ = orig_img_shape
+#     img_h, img_w = resized_img_shape
+#     orig_img_h, orig_img_w, _ = orig_img_shape
 
-    w_scale = img_w/orig_img_w
-    h_scale = img_h/orig_img_h
+#     w_scale = img_w/orig_img_w
+#     h_scale = img_h/orig_img_h
 
-    colors = {
-        1: (0,255,0), # Swimmer 
-        2: (255,0,0), # Floater
-        3: (51,255,255), # Boat
-        4: (255,255,0), # Swimmer on Boat
-        5: (255, 102, 255), # Floater on Boat
-        6: (255, 153, 51)} # Life Jacket
+#     colors = {
+#         1: (0,255,0), # Swimmer 
+#         2: (255,0,0), # Floater
+#         3: (51,255,255), # Boat
+#         4: (255,255,0), # Swimmer on Boat
+#         5: (255, 102, 255), # Floater on Boat
+#         6: (255, 153, 51)} # Life Jacket
     
-    image = imread(image_ids[index])
-    # image = resize(image, img_shape)
-    print(len(categories_all[index - 1]), len(bboxes_all[index - 1]))
-    for cat, bbox in list(zip(categories_all[index - 1], bboxes_all[index - 1])):
-        print(cat, bbox)
-        # for bbox in bboxes:
-        #     print(bbox)
-        # Resize BBOX as per image here
-        cv2.rectangle(image, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), colors[cat], thickness=2)
+#     image = imread(image_ids[index])
+#     # image = resize(image, img_shape)
+#     # print(len(categories_all[index - 1]), len(bboxes_all[index - 1]))
+#     for cat, bbox in list(zip(categories_all[index - 1], bboxes_all[index - 1])):
+#         # print(cat, bbox)
+#         # for bbox in bboxes:
+#         #     print(bbox)
+#         # Resize BBOX as per image here
+#         cv2.rectangle(image, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), colors[cat], thickness=2)
     
-    plt.imshow(image)
-    plt.axis("on")
-    plt.show()
+#     plt.imshow(image)
+#     plt.axis("on")
+#     plt.show()
 
 def load_data(save_partition_path, save_bboxes_path, save_categories_path, annotations_path, img_dir_path, resized_img_shape, orig_img_shape, split = (0.7, 0.1, 0.2), force_overwrite=False):
 
@@ -174,7 +182,7 @@ def display_batch(batch: tuple):
         fig.add_subplot(1, len(img_batch), i+1)
         img = draw_bb(img_batch[i], classes_batch[i], bboxes_batch[i])
         plt.imshow(img)
-        plt.axis("off")
+        plt.axis("on")
     plt.show()
 
 def draw_bb(img: torch.Tensor, classes: torch.IntTensor, bboxes: torch.IntTensor) -> torch.Tensor:
