@@ -230,25 +230,45 @@ def gen_anc_base(anc_pts_x, anc_pts_y, anc_scales, anc_ratios, out_size):
             
     return anc_base
 
+def generate_proposals(anchors, offsets):
+   
+    # change format of the anchor boxes from 'xyxy' to 'cxcywh'
+    anchors = ops.box_convert(anchors, in_fmt='xyxy', out_fmt='cxcywh')
+    # print(f"Anchors: {anchors.shape}, Offsets: {offsets.shape}")
+    # apply offsets to anchors to create proposals
+    proposals_ = torch.zeros_like(anchors)
+    proposals_[:,0] = anchors[:,0] + offsets[:,0]*anchors[:,2]
+    proposals_[:,1] = anchors[:,1] + offsets[:,1]*anchors[:,3]
+    proposals_[:,2] = anchors[:,2] * torch.exp(offsets[:,2])
+    proposals_[:,3] = anchors[:,3] * torch.exp(offsets[:,3])
+
+    # change format of proposals back from 'cxcywh' to 'xyxy'
+    proposals = ops.box_convert(proposals_, in_fmt='cxcywh', out_fmt='xyxy')
+
+    return proposals
+
 def project_bboxes(bboxes: torch.Tensor, width_scale_factor, height_scale_factor, mode='a2p'):
     assert mode in ['a2p', 'p2a']
     
     batch_size = bboxes.size(dim=0)
-    proj_bboxes = bboxes.clone().reshape(batch_size, -1, 4)
-    invalid_bbox_mask = (proj_bboxes == -1) # indicating padded bboxes
-    
-    if mode == 'a2p':
-        # activation map to pixel image
-        proj_bboxes[:, :, [0, 2]] *= width_scale_factor
-        proj_bboxes[:, :, [1, 3]] *= height_scale_factor
-    else:
-        # pixel image to activation map
-        proj_bboxes[:, :, [0, 2]] //= width_scale_factor
-        proj_bboxes[:, :, [1, 3]] //= height_scale_factor
+    # print(bboxes.shape)
+    if batch_size > 0:
+        proj_bboxes = bboxes.clone().reshape(batch_size, -1, 4)
+        invalid_bbox_mask = (proj_bboxes == 0) # indicating padded bboxes
         
-    proj_bboxes.masked_fill_(invalid_bbox_mask, -1) # fill padded bboxes back with -1
-    proj_bboxes.resize_as_(bboxes)
-    
+        if mode == 'a2p':
+            # activation map to pixel image
+            proj_bboxes[:, :, [0, 2]] *= width_scale_factor
+            proj_bboxes[:, :, [1, 3]] *= height_scale_factor
+        else:
+            # pixel image to activation map
+            proj_bboxes[:, :, [0, 2]] //= width_scale_factor
+            proj_bboxes[:, :, [1, 3]] //= height_scale_factor
+            
+        proj_bboxes.masked_fill_(invalid_bbox_mask, -1) # fill padded bboxes back with -1
+        proj_bboxes.resize_as_(bboxes)
+    else:
+        proj_bboxes = bboxes.clone().reshape(batch_size, 1, 4)
     return proj_bboxes
 
 # Display Functions
