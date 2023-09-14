@@ -5,6 +5,7 @@ import numpy as np
 import json
 import sys
 import matplotlib.pyplot as plt
+import config
 
 from torch.utils.data import DataLoader
 from skimage.io import imread
@@ -12,28 +13,23 @@ from skimage.io import imread
 from dataset_loader import MOTDataset
 from utils import split_ids, parse_annotations, load_data, custom_collate, display_batch, gen_anc_centers, display_img, display_grid, gen_anc_base, project_bboxes, display_bbox, get_req_anchors
 from faster_rcnn import FasterRCNN
+from model import *
 
 def od_pipeline():
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(device)
 
-    resize_factor = 5
-    img_dir_path = "data/train"
-    annotations_path = "data/annotations/instances_train_swimmer.json"
-    test_image = np.array(imread(os.path.join(img_dir_path, '0.jpg')))
+    test_image = np.array(imread(os.path.join(config.IMG_DIR_PATH, '0.jpg')))
     orig_img_shape = test_image.shape
-    resized_img_shape = (round(orig_img_shape[0] / resize_factor), round(orig_img_shape[1] / resize_factor))
-    save_partition_path = "custom_data/partition_ids.json"
-    save_bboxes_path = "custom_data/bboxes_all.json"
-    save_categories_all = "custom_data/categories_all.json"
+    resized_img_shape = (round(orig_img_shape[0] / config.RESIZE_FACTOR), round(orig_img_shape[1] / config.RESIZE_FACTOR))
     
     partition_ids, bboxes_all, categories_all = load_data(
-        save_partition_path=save_partition_path,
-        save_bboxes_path=save_bboxes_path,
-        save_categories_path=save_categories_all,
-        annotations_path=annotations_path,
-        img_dir_path=img_dir_path,
+        save_partition_path=config.SAVE_IMAGES_PATH,
+        save_bboxes_path=config.SAVE_BBOXES_PATH,
+        save_categories_path=config.SAVE_CLASSES_PATH,
+        annotations_path=config.ANNOTATIONS_PATH,
+        img_dir_path=config.IMG_DIR_PATH,
         resized_img_shape=resized_img_shape,
         orig_img_shape=orig_img_shape,
         split=(0.7, 0.1, 0.2),
@@ -55,7 +51,7 @@ def od_pipeline():
     )
 
     #Use pad sequence if facing any more errors with the return type of the data_loader
-    mot_custom_dataloader = DataLoader(mot_custom_dataset, batch_size=2, shuffle=True, collate_fn=custom_collate)
+    mot_custom_dataloader = DataLoader(mot_custom_dataset, batch_size=4, shuffle=True, collate_fn=custom_collate)
 
     for img_batch, class_labels_batch, bboxes_labels_batch in mot_custom_dataloader:
         img_data_all: torch.FloatTensor = img_batch
@@ -65,7 +61,6 @@ def od_pipeline():
 
     # display_batch(batch=(img_data_all, classes_all, bboxes_all))
     model = FasterRCNN(device)
-    torch.cuda.empty_cache()
     model.to(device)
     img_data_all = img_data_all.to(device)
     classes_all = classes_all.to(device)
@@ -73,15 +68,16 @@ def od_pipeline():
 
     # print(f"Model: {model.device}, Img Data: {img_data_all.device}, Classes: {classes_all.device}, Bboxes: {bboxes_all.device}")
 
-    print(img_data_all.size(), resized_img_shape)
+    # print(img_data_all.size(), resized_img_shape)
     out = model.forward(img_data_all)
     out_c, out_h, out_w = out.size(dim=1), out.size(dim=2), out.size(dim=3)
+    config.OUT_C, config.OUT_H, config.OUT_W = out_c, out_h, out_w
     print(out_c, out_h, out_w)
 
     width_scale_factor = resized_img_shape[1] // out_w
     height_scale_factor = resized_img_shape[0] // out_h
 
-    print(height_scale_factor, width_scale_factor)
+    # print(height_scale_factor, width_scale_factor)
     nrows, ncols = (1, 2)
     fig= plt.figure(figsize=(16, 8))
 
@@ -92,7 +88,7 @@ def od_pipeline():
         plt.imshow(filters_data[i])
         plt.axis("on")
     
-    plt.show()
+    # plt.show()
 
     img_data_all = img_data_all.cpu()
     classes_all = classes_all.cpu()
@@ -121,7 +117,7 @@ def od_pipeline():
     anc_base = gen_anc_base(anc_x, anc_y, anc_scales, anc_ratios, (out_h, out_w))
     anc_boxes_all = anc_base.repeat(img_data_all.size(dim=0), 1, 1, 1, 1)
 
-    nrows, ncols = (1, 2)
+    nrows, ncols = (1, 4)
     fig, axes = plt.subplots(nrows, ncols, figsize=(16, 8))
 
     fig, axes = display_img(img_data_all, fig, axes)
@@ -135,11 +131,11 @@ def od_pipeline():
     bboxes_1 = anc_boxes_proj[0][sp_1[0], sp_1[1]]
     bboxes_2 = anc_boxes_proj[1][sp_2[0], sp_2[1]]
 
-    fig, _ = display_grid(anc_pts_x_proj, anc_pts_y_proj, fig, axes[0], (anc_pts_x_proj[sp_1[0]], anc_pts_y_proj[sp_1[1]]))
-    fig, _ = display_grid(anc_pts_x_proj, anc_pts_y_proj, fig, axes[1], (anc_pts_x_proj[sp_2[0]], anc_pts_y_proj[sp_2[1]]))
-    fig, _ = display_bbox(bboxes_1, fig, axes[0])
-    fig, _ = display_bbox(bboxes_2, fig, axes[1])
-    plt.show()
+    # fig, _ = display_grid(anc_pts_x_proj, anc_pts_y_proj, fig, axes[0], (anc_pts_x_proj[sp_1[0]], anc_pts_y_proj[sp_1[1]]))
+    # fig, _ = display_grid(anc_pts_x_proj, anc_pts_y_proj, fig, axes[1], (anc_pts_x_proj[sp_2[0]], anc_pts_y_proj[sp_2[1]]))
+    # fig, _ = display_bbox(bboxes_1, fig, axes[0])
+    # fig, _ = display_bbox(bboxes_2, fig, axes[1])
+    # plt.show()
 
     #Display all images with anchor points and all boxes for all anchor points
     # nrows, ncols = (1, 2)
@@ -186,25 +182,39 @@ def od_pipeline():
     neg_anc_1 = neg_anc_proj[anc_idx_1]
     neg_anc_2 = neg_anc_proj[anc_idx_2]
 
-    nrows, ncols = (1, 2)
-    fig, axes = plt.subplots(nrows, ncols, figsize=(16, 8))
+    # nrows, ncols = (1, 2)
+    # fig, axes = plt.subplots(nrows, ncols, figsize=(16, 8))
 
-    fig, axes = display_img(img_data_all, fig, axes)
+    # fig, axes = display_img(img_data_all, fig, axes)
 
-    # plot groundtruth bboxes
-    fig, _ = display_bbox(bboxes_all[0], fig, axes[0])
-    fig, _ = display_bbox(bboxes_all[1], fig, axes[1])
+    # # plot groundtruth bboxes
+    # fig, _ = display_bbox(bboxes_all[0], fig, axes[0])
+    # fig, _ = display_bbox(bboxes_all[1], fig, axes[1])
 
-    # plot positive anchor boxes
-    fig, _ = display_bbox(pos_anc_1, fig, axes[0], color='g')
-    fig, _ = display_bbox(pos_anc_2, fig, axes[1], color='g')
+    # # plot positive anchor boxes
+    # fig, _ = display_bbox(pos_anc_1, fig, axes[0], color='g')
+    # fig, _ = display_bbox(pos_anc_2, fig, axes[1], color='g')
 
-    # plot negative anchor boxes
-    fig, _ = display_bbox(neg_anc_1, fig, axes[0], color='r')
-    fig, _ = display_bbox(neg_anc_2, fig, axes[1], color='r')
+    # # plot negative anchor boxes
+    # fig, _ = display_bbox(neg_anc_1, fig, axes[0], color='r')
+    # fig, _ = display_bbox(neg_anc_2, fig, axes[1], color='r')
     
-    plt.show()
+    # plt.show()
 
+
+    img_size = (resized_img_shape[0], resized_img_shape[1])
+    out_size = (out_h, out_w)
+    n_classes = 6 # exclude pad idx
+    roi_size = (2, 2)
+
+    # img_data_all = img_data_all.to(device)
+    # classes_all = classes_all.to(device)
+    # bboxes_all = bboxes_all.to(device)
+
+    detector = TwoStageDetector(img_size, out_size, out_c, n_classes, roi_size)
+    detector.eval()
+    total_loss = detector(img_data_all, bboxes_all, classes_all)
+    proposals_final, conf_scores_final, classes_final = detector.inference(img_data_all)
 
 if __name__ == '__main__':
     od_pipeline()

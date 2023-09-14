@@ -5,6 +5,7 @@ import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 import matplotlib.patches as patches
+import config
 
 from tqdm import tqdm
 from skimage.io import imread
@@ -157,8 +158,8 @@ def load_data(save_partition_path, save_bboxes_path, save_categories_path, annot
             categories_all = json.load(json_categories_obj)
 
     print(f"Length of Data: {len(partition_ids['all'])}, Length of Train: {len(partition_ids['train'])}, Length of Val: {len(partition_ids['validation'])}, Length of Test: {len(partition_ids['test'])}")
-    print(f"Length of Bboxes: {len(bboxes_all['all'])}, Length of Train: {len(bboxes_all['train'])}, Length of Val: {len(bboxes_all['validation'])}, Length of Test: {len(bboxes_all['test'])}")
-    print(f"Length of Categories: {len(categories_all['all'])}, Length of Train: {len(categories_all['train'])}, Length of Val: {len(categories_all['validation'])}, Length of Test: {len(categories_all['test'])}")
+    # print(f"Length of Bboxes: {len(bboxes_all['all'])}, Length of Train: {len(bboxes_all['train'])}, Length of Val: {len(bboxes_all['validation'])}, Length of Test: {len(bboxes_all['test'])}")
+    # print(f"Length of Categories: {len(categories_all['all'])}, Length of Train: {len(categories_all['train'])}, Length of Val: {len(categories_all['validation'])}, Length of Test: {len(categories_all['test'])}")
 
     return partition_ids, bboxes_all, categories_all
 
@@ -275,7 +276,7 @@ def draw_bb(img: torch.Tensor, classes: torch.IntTensor, bboxes: torch.IntTensor
     
     img = np.array(img.permute(1,2,0)).copy()
     for bb, c in list(zip(bboxes.tolist(), classes.tolist())):
-        print(bb, c)
+        # print(bb, c)
         cv2.rectangle(img, (bb[0], bb[1]), (bb[2], bb[3]), colors[c[0]], thickness=2)
 
     return img
@@ -358,7 +359,7 @@ def calc_gt_offsets(pos_anc_coords, gt_bbox_mapping):
 
 
 ## Long One
-def get_req_anchors(anc_boxes_all, gt_bboxes_all: torch.Tensor, gt_classes_all: torch.Tensor, pos_thresh=0.7, neg_thresh=0.2):
+def get_req_anchors(anc_boxes_all: torch.Tensor, gt_bboxes_all: torch.Tensor, gt_classes_all: torch.Tensor, pos_thresh=0.7, neg_thresh=0.2):
     '''
     Prepare necessary data required for training
     
@@ -386,9 +387,14 @@ def get_req_anchors(anc_boxes_all, gt_bboxes_all: torch.Tensor, gt_classes_all: 
     negative_anc_coords - (n_pos, 4) coords of -ve anchors (for visualization)
     positive_anc_ind_sep - list of indices to keep track of +ve anchors
     '''
+    # anc_boxes_all = anc_boxes_all.to(config.DEVICE)
+    # gt_bboxes_all = gt_bboxes_all.to(config.DEVICE)
+    # gt_classes_all = gt_classes_all.to(config.DEVICE)
+    
     # get the size and shape parameters
     B, w_amap, h_amap, A, _ = anc_boxes_all.shape
     N = gt_bboxes_all.shape[1] # max number of groundtruth bboxes in a batch
+    # print(f"B, wmap, hmap, A: {B, w_amap, h_amap, A}")
     
     # get total number of anchor boxes in a single image
     tot_anc_boxes = A * w_amap * h_amap
@@ -412,6 +418,7 @@ def get_req_anchors(anc_boxes_all, gt_bboxes_all: torch.Tensor, gt_classes_all: 
     # combine all the batches and get the idxs of the +ve anchor boxes
     positive_anc_mask = positive_anc_mask.flatten(start_dim=0, end_dim=1)
     positive_anc_ind = torch.where(positive_anc_mask)[0]
+    # print(f"Positive Anchor Indices: {positive_anc_ind}")
     
     # for every anchor box, get the iou and the idx of the
     # gt bbox it overlaps with the most
@@ -455,6 +462,8 @@ def get_req_anchors(anc_boxes_all, gt_bboxes_all: torch.Tensor, gt_classes_all: 
     # condition: select the anchor boxes with max iou less than the threshold
     negative_anc_mask = (max_iou_per_anc < neg_thresh)
     negative_anc_ind = torch.where(negative_anc_mask)[0]
+    # print(f"Negative Anchor Indices: {negative_anc_ind}")
+
     # sample -ve samples to match the +ve samples
     negative_anc_ind = negative_anc_ind[torch.randint(0, negative_anc_ind.shape[0], (positive_anc_ind.shape[0],))]
     negative_anc_coords = anc_boxes_flat[negative_anc_ind]
