@@ -1,4 +1,7 @@
 # marine-search-and-rescue
+
+Performing Object Detection and Multi Object Tracking for marine search and rescue purposes using Faster RCNN and Deep SORT
+
 ```
 Annotations Structure:
 -info
