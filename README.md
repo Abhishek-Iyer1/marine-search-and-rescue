@@ -1,6 +1,6 @@
 # marine-search-and-rescue
 
-Performing Object Detection and Multi Object Tracking for marine search and rescue purposes using Faster RCNN and Deep SORT
+Performing Object Detection and Multi Object Tracking (Upcoming) for marine search and rescue purposes using Faster RCNN and Deep SORT (To be implemented)
 
 ## Dataset Links
 
