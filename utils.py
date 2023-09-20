@@ -6,6 +6,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import matplotlib.patches as patches
 import config
+import math
+import torch.nn.functional as F
 
 from tqdm import tqdm
 from skimage.io import imread
@@ -45,9 +47,7 @@ def parse_annotations(annotation_path: str, image_dir: str):
     sorted_img_dir = sorted(os.listdir(image_dir), key= lambda y: int(y.split(".")[0]))
     sorted_annotations = sorted(annotations["annotations"], key= lambda y: int(y["image_id"]))
 
-
     for file in tqdm(sorted_img_dir):
-        partition["all"].append(os.path.join(image_dir, file))
         img_number = file.split(".")[0]
 
         category_labels = []
@@ -379,7 +379,7 @@ def calc_gt_offsets(pos_anc_coords, gt_bbox_mapping):
 
 
 ## Long One
-def get_req_anchors(anc_boxes_all: torch.Tensor, gt_bboxes_all: torch.Tensor, gt_classes_all: torch.Tensor, pos_thresh=0.7, neg_thresh=0.2):
+def get_req_anchors(anc_boxes_all: torch.Tensor, gt_bboxes_all: torch.Tensor, gt_classes_all: torch.Tensor, pos_thresh=0.7, neg_thresh=0.3):
     '''
     Prepare necessary data required for training
     
@@ -407,9 +407,9 @@ def get_req_anchors(anc_boxes_all: torch.Tensor, gt_bboxes_all: torch.Tensor, gt
     negative_anc_coords - (n_pos, 4) coords of -ve anchors (for visualization)
     positive_anc_ind_sep - list of indices to keep track of +ve anchors
     '''
-    # anc_boxes_all = anc_boxes_all.to(config.DEVICE)
-    # gt_bboxes_all = gt_bboxes_all.to(config.DEVICE)
-    # gt_classes_all = gt_classes_all.to(config.DEVICE)
+    anc_boxes_all = anc_boxes_all.to(config.DEVICE)
+    gt_bboxes_all = gt_bboxes_all.to(config.DEVICE)
+    gt_classes_all = gt_classes_all.to(config.DEVICE)
     
     # get the size and shape parameters
     B, w_amap, h_amap, A, _ = anc_boxes_all.shape
@@ -453,8 +453,9 @@ def get_req_anchors(anc_boxes_all: torch.Tensor, gt_bboxes_all: torch.Tensor, gt
     # expand gt classes to map against every anchor box
     # print(f"Classes All  Shape: {anc_boxes_all.shape, gt_classes_all.shape, gt_bboxes_all.shape, B, A, N}")
     # print(f"Classes All: {gt_classes_all}")
-    gt_classes_expand = gt_classes_all.view(B, 1, N).expand(B, tot_anc_boxes, N)
+    gt_classes_expand: torch.Tensor = gt_classes_all.view(B, 1, N).expand(B, tot_anc_boxes, N)
     # for every anchor box, consider only the class of the gt bbox it overlaps with the most
+    # print(f"Gt classes expand: {gt_classes_expand.device}, max iou: {max_iou_per_anc_ind.device}")
     GT_class = torch.gather(gt_classes_expand, -1, max_iou_per_anc_ind.unsqueeze(-1)).squeeze(-1)
     # combine all the batches and get the mapped classes of the +ve anchor boxes
     GT_class = GT_class.flatten(start_dim=0, end_dim=1)
@@ -463,7 +464,7 @@ def get_req_anchors(anc_boxes_all: torch.Tensor, gt_bboxes_all: torch.Tensor, gt
     # get gt bbox coordinates of the +ve anchor boxes
     
     # expand all the gt bboxes to map against every anchor box
-    gt_bboxes_expand = gt_bboxes_all.view(B, 1, N, 4).expand(B, tot_anc_boxes, N, 4)
+    gt_bboxes_expand: torch.Tensor = gt_bboxes_all.view(B, 1, N, 4).expand(B, tot_anc_boxes, N, 4)
     # for every anchor box, consider only the coordinates of the gt bbox it overlaps with the most
     GT_bboxes = torch.gather(gt_bboxes_expand, -2, max_iou_per_anc_ind.reshape(B, tot_anc_boxes, 1, 1).repeat(1, 1, 1, 4))
     # combine all the batches and get the mapped gt bbox coordinates of the +ve anchor boxes
@@ -475,7 +476,7 @@ def get_req_anchors(anc_boxes_all: torch.Tensor, gt_bboxes_all: torch.Tensor, gt
     positive_anc_coords = anc_boxes_flat[positive_anc_ind]
     
     # calculate gt offsets
-    GT_offsets = calc_gt_offsets(positive_anc_coords, GT_bboxes_pos)
+    GT_offsets = calc_gt_offsets(positive_anc_coords, GT_bboxes_pos).to(config.DEVICE)
     
     # get -ve anchors
     
