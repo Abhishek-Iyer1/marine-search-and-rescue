@@ -304,10 +304,20 @@ def draw_bb(img: torch.Tensor, classes: torch.IntTensor, bboxes: torch.IntTensor
 
     return img
 
-def display_bbox(bboxes, fig, ax, classes=None, in_format='xyxy', color='y', line_width=2):
+def display_bbox(bboxes, fig, ax, classes=None, in_format='xyxy', color='y', line_width=1):
+    colors = {
+        "pad" : "#000000", # Pad
+        "swimmer": "#00FF00", # Swimmer 
+        "floater": "#0000FF", # Floater
+        "boat": "#FFFF33", # Boat
+        "swimmer_on_boat": "#00FFFF", # Swimmer on Boat
+        "floater_on_boat": "#FF66FF", # Floater on Boat
+        "life_jacket": "#3399FF"} # Life Jacket
+    
     if type(bboxes) == np.ndarray:
         bboxes = torch.from_numpy(bboxes)
     if classes:
+        # print(len(bboxes), len(classes))
         assert len(bboxes) == len(classes)
     # convert boxes to xywh format
     bboxes = ops.box_convert(bboxes, in_fmt=in_format, out_fmt='xywh')
@@ -315,13 +325,18 @@ def display_bbox(bboxes, fig, ax, classes=None, in_format='xyxy', color='y', lin
     for box in bboxes:
         x, y, w, h = box.numpy()
         # display bounding box
-        rect = patches.Rectangle((x, y), w, h, linewidth=line_width, edgecolor=color, facecolor='none')
-        ax.add_patch(rect)
+        # print(colors[classes[c]])
         # display category
         if classes:
             if classes[c] == 'pad':
                 continue
-            ax.text(x + 5, y + 20, classes[c], bbox=dict(facecolor='yellow', alpha=0.5))
+            rect = patches.Rectangle((x, y), w, h, linewidth=line_width, edgecolor=colors[classes[c]], facecolor='none')
+            ax.add_patch(rect)
+            ax.text(x + 5, y + 20, classes[c], bbox=dict(facecolor=colors[classes[c]], alpha=0.2))
+        else:
+            rect = patches.Rectangle((x, y), w, h, linewidth=line_width, edgecolor=color, facecolor='none')
+            ax.add_patch(rect)
+            # ax.text(x + 5, y + 20, , bbox=dict(facecolor="yellow", alpha=0.2))
         c += 1
         
     return fig, ax
@@ -347,6 +362,39 @@ def display_img(img_data, fig, axes):
     
     return fig, axes
 
+def display_inference(img_batch: list[torch.Tensor], bboxes_inference, classes_inference, gt_bboxes, gt_classes, width_scale_factor, height_scale_factor):
+    nrows, ncols = (1, len(img_batch))
+    name2idx = {
+        'pad': 0, 
+        'swimmer': 1, 
+        'floater': 2, 
+        'boat': 3, 
+        'swimmer_on_boat': 4, 
+        'floater_on_boat': 5, 
+        'life_jacket': 6}
+    
+    idx2name = {v:k for k, v in name2idx.items()}
+
+    fig, axes = plt.subplots(nrows, ncols, figsize=(16, 8))
+    fig, axes = display_img(img_batch.cpu(), fig, axes)
+    print(f"GT BBOXES SHAPE: {gt_bboxes.shape, gt_bboxes[0]}")
+
+    # img_bboxes = project_bboxes(bbox_tensor, width_scale_factor, height_scale_factor)
+    # gt_bboxes = project_bboxes(gt_bboxes, width_scale_factor, height_scale_factor, 'p2a')
+
+    for i in range(0, len(img_batch)):
+        img_bboxes = project_bboxes(bboxes_inference[i], width_scale_factor, height_scale_factor)
+        print(img_bboxes[0:7], gt_bboxes[0:7])
+        # # print(f"Bboxes Inference: {bboxes_inference[0]}")
+        # gt_bboxes = project_bboxes(gt_bboxes[i], width_scale_factor, height_scale_factor, 'p2a')
+        # # print(f"Img Bboxes: {bboxes_inference[i][0]}\nGT Bboxes: {gt_bboxes[0]}")
+        classes_pred = [idx2name[cls] for cls in classes_inference[i].tolist()]
+        gt_classes_pred = [idx2name[int(cls[0])] for cls in gt_classes[i]]
+        # # print(gt_classes_pred)
+        fig, _ = display_bbox(img_bboxes.cpu(), fig, axes[i], classes=classes_pred, line_width=1)
+        fig, _ = display_bbox(gt_bboxes[i].cpu(), fig, axes[i], classes=gt_classes_pred, line_width=3)
+
+    plt.show()
 
 def get_iou_mat(batch_size, anc_boxes_all, gt_bboxes_all):
     
@@ -362,8 +410,17 @@ def get_iou_mat(batch_size, anc_boxes_all, gt_bboxes_all):
     for i in range(batch_size):
         gt_bboxes = gt_bboxes_all[i]
         anc_boxes = anc_boxes_flat[i]
-        ious_mat[i, :] = ops.box_iou(anc_boxes, gt_bboxes)
-        
+        # gt_bboxes_projected = project_bboxes(gt_bboxes, config.WIDTH_SCALE_FACTOR, config.HEIGHT_SCALE_FACTOR)
+        # anc_boxes_projected = project_bboxes(anc_boxes, width_scale_factor=config.WIDTH_SCALE_FACTOR, height_scale_factor=config.HEIGHT_SCALE_FACTOR)
+        temp = ops.box_iou(anc_boxes, gt_bboxes)
+        ious_mat[i, :] = temp
+        # print(f"IOU MAT within for loop: {ious_mat[i, :]}")
+        #flatten, sort, and print for highest values first
+        sorted_temp = temp.flatten().sort(descending=True)
+        # if sorted_temp.values[0] == 0:
+            # print(f"Anchor_boxes: {anc_boxes[0:7]}\nGround Truth: {gt_bboxes[0]}")
+            # print(f"Projected GT BBoxes: {gt_bboxes},\nOrig shape: {config.ORIG_IMAGE_SHAPE},\nResized shape: {config.RESIZED_IMAGE_SHAPE},\nProjected Anc Boxes: {anc_boxes}")
+            # print(f"Sorted Temp: {sorted_temp}")
     return ious_mat
 
 def calc_gt_offsets(pos_anc_coords, gt_bbox_mapping):
@@ -424,21 +481,28 @@ def get_req_anchors(anc_boxes_all: torch.Tensor, gt_bboxes_all: torch.Tensor, gt
     
     # get the iou matrix which contains iou of every anchor box
     # against all the groundtruth bboxes in an image
-    iou_mat = get_iou_mat(B, anc_boxes_all, gt_bboxes_all)
-    
+    # print(f"Anc boxes all: {anc_boxes_all}, GT bboxes all: {gt_bboxes_all}")
+    iou_mat: torch.Tensor = get_iou_mat(B, anc_boxes_all, gt_bboxes_all).to(config.DEVICE)
+    # print(f"iou  mat: {iou_mat}")
+
     # for every groundtruth bbox in an image, find the iou 
     # with the anchor box which it overlaps the most
     max_iou_per_gt_box, _ = iou_mat.max(dim=1, keepdim=True)
+    # print(f"max iou per gt box: {max_iou_per_gt_box}")
+
+    # print(f"iou indices?: {torch.where(iou_mat == max_iou_per_gt_box)}")
     
     # get positive anchor boxes
     
     # condition 1: the anchor box with the max iou for every gt bbox
-    positive_anc_mask = torch.logical_and(iou_mat == max_iou_per_gt_box, max_iou_per_gt_box > 0) 
+    positive_anc_mask: torch.Tensor = torch.logical_and(iou_mat == max_iou_per_gt_box, max_iou_per_gt_box > 0)
+    # print(f"positive anc mask: {positive_anc_mask}")
     # condition 2: anchor boxes with iou above a threshold with any of the gt bboxes
     positive_anc_mask = torch.logical_or(positive_anc_mask, iou_mat > pos_thresh)
     
     positive_anc_ind_sep = torch.where(positive_anc_mask)[0] # get separate indices in the batch
     # combine all the batches and get the idxs of the +ve anchor boxes
+    # print(f"postive anc ind max {positive_anc_ind_sep.max()}")
     positive_anc_mask = positive_anc_mask.flatten(start_dim=0, end_dim=1)
     positive_anc_ind = torch.where(positive_anc_mask)[0]
     # print(f"Positive Anchor Indices: {positive_anc_ind}")
