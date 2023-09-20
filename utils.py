@@ -67,12 +67,12 @@ def parse_annotations(annotation_path: str, image_dir: str):
                     category_labels.append([category_id])
                     bbox_labels.append(bbox)
         
-        if len(bbox_labels) == 0:
-            category_labels.append([0])
-            bbox_labels.append([0,0,0,0])
-
-        bboxes_all["all"].append(bbox_labels)
-        categories_all["all"].append(category_labels)
+        assert len(bbox_labels) == len(category_labels)
+        
+        if len(bbox_labels) > 0:
+            partition["all"].append(os.path.join(image_dir, file))
+            bboxes_all["all"].append(bbox_labels)
+            categories_all["all"].append(category_labels)
 
     return partition, bboxes_all, categories_all
 
@@ -247,13 +247,14 @@ def generate_proposals(anchors, offsets):
 
     return proposals
 
-def project_bboxes(bboxes: torch.Tensor, width_scale_factor, height_scale_factor, mode='a2p'):
+def project_bboxes(bboxes: torch.Tensor, width_scale_factor, height_scale_factor, mode='a2p') -> torch.Tensor:
+    bboxes = bboxes.to(config.DEVICE)
     assert mode in ['a2p', 'p2a']
     
     batch_size = bboxes.size(dim=0)
     # print(bboxes.shape)
     if batch_size > 0:
-        proj_bboxes = bboxes.clone().reshape(batch_size, -1, 4)
+        proj_bboxes:torch.FloatTensor = bboxes.clone().reshape(batch_size, -1, 4).float()
         invalid_bbox_mask = (proj_bboxes == 0) # indicating padded bboxes
         
         if mode == 'a2p':
@@ -262,13 +263,15 @@ def project_bboxes(bboxes: torch.Tensor, width_scale_factor, height_scale_factor
             proj_bboxes[:, :, [1, 3]] *= height_scale_factor
         else:
             # pixel image to activation map
-            proj_bboxes[:, :, [0, 2]] //= width_scale_factor
-            proj_bboxes[:, :, [1, 3]] //= height_scale_factor
+            proj_bboxes[:, :, [0, 2]] /= width_scale_factor
+            proj_bboxes[:, :, [1, 3]] /= height_scale_factor
             
-        proj_bboxes.masked_fill_(invalid_bbox_mask, -1) # fill padded bboxes back with -1
+        proj_bboxes.masked_fill_(invalid_bbox_mask, 0) # fill padded bboxes back with -1
         proj_bboxes.resize_as_(bboxes)
     else:
-        proj_bboxes = bboxes.clone().reshape(batch_size, 1, 4)
+        proj_bboxes = bboxes.clone().reshape(batch_size, 1, 4).float()
+
+    proj_bboxes = proj_bboxes.to(config.DEVICE)
     return proj_bboxes
 
 # Display Functions
