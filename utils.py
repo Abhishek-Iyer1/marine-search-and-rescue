@@ -491,3 +491,31 @@ def get_req_anchors(anc_boxes_all: torch.Tensor, gt_bboxes_all: torch.Tensor, gt
     
     return positive_anc_ind, negative_anc_ind, GT_conf_scores, GT_offsets, GT_class_pos, \
          positive_anc_coords, negative_anc_coords, positive_anc_ind_sep
+
+def calc_giou_loss(proposals_batch: list[torch.Tensor], ground_truth: torch.Tensor):
+    giou_batch_loss = 0
+    
+    for i, sample_proposals in enumerate(proposals_batch):
+        
+        # print(f"Sample Proposals: {sample_proposals}")
+        giou_img_loss = 0
+
+        sample_proposals = project_bboxes(sample_proposals, config.WIDTH_SCALE_FACTOR, config.HEIGHT_SCALE_FACTOR)
+
+        for individual_bbox in sample_proposals:
+            closest_bbox, _ = find_closest_gt(individual_bbox, ground_truth[i])
+            individual_giou_loss = ops.generalized_box_iou_loss(individual_bbox, closest_bbox)
+            giou_img_loss += individual_giou_loss
+
+        giou_batch_loss += giou_img_loss
+    return giou_batch_loss
+
+
+def find_closest_gt(bbox_proposals: torch.Tensor, img_gt_bboxes: torch.Tensor):
+    bbox_proposals_center = ((bbox_proposals[0] + bbox_proposals[2]) / 2, (bbox_proposals[1] + bbox_proposals[3]) / 2)
+    img_gt_bboxes_centers = [((img_gt_bbox[0] + img_gt_bbox[2])/2, (img_gt_bbox[1] + img_gt_bbox[3])/2) for img_gt_bbox in img_gt_bboxes]
+    distances = []
+    for img_gt_bbox in img_gt_bboxes_centers:
+        distances.append(math.sqrt((img_gt_bbox[0] - bbox_proposals_center[0])**2 + (img_gt_bbox[1] - bbox_proposals_center[1])**2))
+    closest_gt_index = distances.index(min(distances))
+    return img_gt_bboxes[closest_gt_index], closest_gt_index
