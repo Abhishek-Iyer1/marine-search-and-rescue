@@ -40,8 +40,8 @@ class MOTDataset(Dataset):
         
             # convert image to torch tensor and reshape it so channels come first
             img_tensor = torch.FloatTensor(img).permute(2, 0, 1)
-            class_label = torch.IntTensor(self.categories[index - 1])
-            bbox_label = self.bboxes[index - 1]
+            class_label = torch.IntTensor(self.categories[index]) #index - 1
+            bbox_label = self.bboxes[index] #index - 1
             bbox_label = torch.IntTensor(bbox_label)
             for i in range(0, len(bbox_label)):
                 # print(f"Before: {bbox_label[i]}, Original Shape: {self.orig_img_shape[0], self.orig_img_shape[1]}, Resized Shape: {self.img_shape[0], self.img_shape[1]}")
