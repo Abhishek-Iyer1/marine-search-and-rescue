@@ -57,4 +57,28 @@ def generate_dataloader(batch_size: int, shrink_factor: int = 1, generate_train:
         mot_train_dataloader = DataLoader(mot_train_dataset, batch_size=batch_size, shuffle=shuffle, collate_fn=custom_collate)
         dataloaders["train"] = mot_train_dataloader
         
+    if generate_val:
+        print("Generating Validation Dataloader...")
+        
+        partition_ids["val_lite"] = []
+        bboxes_all["val_lite"] = []
+        categories_all["val_lite"] = []   
+        
+        n_examples = len(partition_ids["validation"]) 
+        
+        for i in tqdm(range(1, n_examples)):
+            if i % shrink_factor == 0:
+                partition_ids["val_lite"].append(partition_ids["validation"][i])
+                bboxes_all["val_lite"].append(bboxes_all["validation"][i-1])
+                categories_all["val_lite"].append(categories_all["validation"][i-1])
 
+        mot_val_dataset = MOTDataset(
+            image_ids=partition_ids["val_lite"],
+            bboxes=bboxes_all["val_lite"],
+            categories = categories_all["val_lite"],
+            resized_img_shape=config.RESIZED_IMAGE_SHAPE,
+            orig_img_shape=config.ORIG_IMAGE_SHAPE
+        )
+
+        mot_val_dataloader = DataLoader(mot_val_dataset, batch_size=batch_size, shuffle=shuffle, collate_fn=custom_collate)
+        dataloaders["val"] = mot_val_dataloader
