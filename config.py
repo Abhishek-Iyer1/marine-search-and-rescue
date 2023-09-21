@@ -10,7 +10,7 @@ ANNOTATIONS_PATH = "data/annotations/instances_train_swimmer.json"
 SAVE_IMAGES_PATH = "custom_data/partition_ids.json"
 SAVE_BBOXES_PATH = "custom_data/bboxes_all.json"
 SAVE_CLASSES_PATH = "custom_data/categories_all.json"
-MODEL_SAVE_PATH = "model_micro.pt"
+MODEL_SAVE_PATH = "model_nano.pt"
 
 # Dimensions -------------------------------------------------------
 
@@ -29,7 +29,13 @@ HEIGHT_SCALE_FACTOR = RESIZED_IMAGE_SHAPE[0] // OUT_H
 N_CLASSES = 6
 LEARNING_RATE = 1e-3
 ROI_SIZE = (2, 2)
-N_EPOCHS = 100
-CONF_THRESH = 0.85
-NMS_THRESH = 0.1
+N_EPOCHS = 200
+BATCH_SIZE = 2
+CONF_THRESH = 0.7
+NMS_THRESH = 0.5
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+# GIOU Loss ---------------------------------------------------------
+BBOX_WEIGHT = 0.75
+CLASS_WEIGHT = 0.25
+assert(BBOX_WEIGHT + CLASS_WEIGHT == 1)
