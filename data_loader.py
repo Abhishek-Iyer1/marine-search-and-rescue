@@ -82,3 +82,31 @@ def generate_dataloader(batch_size: int, shrink_factor: int = 1, generate_train:
 
         mot_val_dataloader = DataLoader(mot_val_dataset, batch_size=batch_size, shuffle=shuffle, collate_fn=custom_collate)
         dataloaders["val"] = mot_val_dataloader
+    
+    if generate_test:
+        print("Generating Test Dataloader...")
+        
+        partition_ids["test_lite"] = []
+        bboxes_all["test_lite"] = []
+        categories_all["test_lite"] = []   
+        
+        n_examples = len(partition_ids["test"]) 
+        
+        for i in tqdm(range(1, n_examples)):
+            if i % shrink_factor == 0:
+                partition_ids["test_lite"].append(partition_ids["test"][i])
+                bboxes_all["test_lite"].append(bboxes_all["test"][i-1])
+                categories_all["test_lite"].append(categories_all["test"][i-1])
+
+        mot_test_dataset = MOTDataset(
+            image_ids=partition_ids["test_lite"],
+            bboxes=bboxes_all["test_lite"],
+            categories = categories_all["test_lite"],
+            resized_img_shape=config.RESIZED_IMAGE_SHAPE,
+            orig_img_shape=config.ORIG_IMAGE_SHAPE
+        )
+
+        mot_test_dataloader = DataLoader(mot_test_dataset, batch_size=batch_size, shuffle=shuffle, collate_fn=custom_collate)
+        dataloaders["test"] = mot_test_dataloader
+
+    return dataloaders
