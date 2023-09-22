@@ -12,14 +12,15 @@ from model import *
 from dataset_loader import MOTDataset
 from utils import load_data, custom_collate
 from data_loader import generate_dataloader
-
+from torch.optim.lr_scheduler import ReduceLROnPlateau
+from torchvision.ops import generalized_box_iou_loss 
 
 def execute_training_loop():
 
     # # Set device to GPU if it exists
     print(f"Device: {config.DEVICE}")
 
-    dataloaders = generate_dataloader(batch_size=config.BATCH_SIZE, shrink_factor=500, generate_val=True, generate_test=True)
+    dataloaders = generate_dataloader(batch_size=config.BATCH_SIZE, shrink_factor=2000, generate_val=True, generate_test=True)
 
     mot_train_dataloader = dataloaders["train"]
     mot_val_dataloader = dataloaders["val"]
@@ -51,6 +52,7 @@ def training_loop(model: TwoStageDetector,  n_epochs: int, learning_rate: float,
 
     # Set
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+    scheduler = ReduceLROnPlateau(optimizer, 'min', 0.5, 7)
     min_valid_loss = np.inf
     model.train()
     loss_list = {
