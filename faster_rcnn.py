@@ -20,7 +20,7 @@ class FasterRCNN(Module):
         resnet_model = torchvision.models.resnet50()
 
         # Can mess around with the length of this for accuracy
-        required_layers = list(resnet_model.children())[:8]
+        required_layers = list(resnet_model.children())[:7]
 
         self.backbone = nn.Sequential(*required_layers)
 
