@@ -71,7 +71,7 @@ def od_pipeline():
     # print(img_data_all.size(), resized_img_shape)
     out = model.forward(img_data_all)
     out_c, out_h, out_w = out.size(dim=1), out.size(dim=2), out.size(dim=3)
-    config.OUT_C, config.OUT_H, config.OUT_W = out_c, out_h, out_w
+    assert ((config.OUT_C, config.OUT_H, config.OUT_W) == (out_c, out_h, out_w))
     print(out_c, out_h, out_w)
 
     width_scale_factor = resized_img_shape[1] // out_w
