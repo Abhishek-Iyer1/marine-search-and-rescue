@@ -90,54 +90,60 @@ def od_pipeline():
     
     # plt.show()
 
+    images = []   
+    # images.append("Feature Map", filters_data[0])
+
     img_data_all = img_data_all.cpu()
     classes_all = classes_all.cpu()
     bboxes_all = bboxes_all.cpu()
 
     anc_x, anc_y = gen_anc_centers((out_h, out_w))
+    print(f"Anc centers x: {anc_x.shape}, Anc centers Y: {anc_y.shape}")
     # project anchor centers onto the original image
     anc_pts_x_proj = anc_x.clone() * width_scale_factor 
     anc_pts_y_proj = anc_y.clone() * height_scale_factor
     
     # Display image with all anchor points
-    # fig, axes = plt.subplots(nrows, ncols, figsize=(16, 8))
+    fig, axes = plt.subplots(nrows, ncols, figsize=(16, 8))
  
-    # fig, axes = display_img(img_data_all, fig, axes)
-    # fig, _ = display_grid(anc_pts_x_proj, anc_pts_y_proj, fig, axes[0])
-    # fig, _ = display_grid(anc_pts_x_proj, anc_pts_y_proj, fig, axes[1])
+    fig, axes = display_img(img_data_all, fig, axes)
+    fig, _ = display_grid(anc_pts_x_proj, anc_pts_y_proj, fig, axes[0])
+    fig, _ = display_grid(anc_pts_x_proj, anc_pts_y_proj, fig, axes[1])
 
+    # images.append("Feature Map", filters_data[0])
     # plt.show()
 
     # Display all images with anchor points and all boxes for one point
-    #NOTE: Think about modifying generation code to make widthwise boxes
-    anc_scales = [0.25, 0.5, 1, 2, 3] #2,4,6
+    anc_scales = [0.25, 0.5, 0.75, 1, 2] #2,4,6
     anc_ratios = [0.5, 1, 1.5] #, 0.5, 1, 1.5
     n_anc_boxes = len(anc_scales) * len(anc_ratios) # number of anchor boxes for each anchor point
 
-    anc_base = gen_anc_base(anc_x, anc_y, anc_scales, anc_ratios, (out_h, out_w))
+    anc_base: torch.Tensor = gen_anc_base(anc_x, anc_y, anc_scales, anc_ratios, (out_h, out_w))
+    print(f"Anc Base: {anc_base.shape}")
     anc_boxes_all = anc_base.repeat(img_data_all.size(dim=0), 1, 1, 1, 1)
+    print(f"Anc Boxes All: {anc_boxes_all.shape}")
 
-    nrows, ncols = (1, 4)
+    nrows, ncols = (1, 2)
     fig, axes = plt.subplots(nrows, ncols, figsize=(16, 8))
 
     fig, axes = display_img(img_data_all, fig, axes)
 
     # project anchor boxes to the image
-    anc_boxes_proj = project_bboxes(anc_boxes_all, width_scale_factor, height_scale_factor, mode='a2p')
-
+    anc_boxes_proj = project_bboxes(anc_boxes_all, width_scale_factor, height_scale_factor, mode='a2p').cpu()
     # plot anchor boxes around selected anchor points
-    sp_1 = [5, 8]
-    sp_2 = [12, 9]
+    sp_1 = [5, 4]
+    sp_2 = [9, 3]
     bboxes_1 = anc_boxes_proj[0][sp_1[0], sp_1[1]]
     bboxes_2 = anc_boxes_proj[1][sp_2[0], sp_2[1]]
+    # print(bboxes_1, bboxes_2)
 
-    # fig, _ = display_grid(anc_pts_x_proj, anc_pts_y_proj, fig, axes[0], (anc_pts_x_proj[sp_1[0]], anc_pts_y_proj[sp_1[1]]))
-    # fig, _ = display_grid(anc_pts_x_proj, anc_pts_y_proj, fig, axes[1], (anc_pts_x_proj[sp_2[0]], anc_pts_y_proj[sp_2[1]]))
-    # fig, _ = display_bbox(bboxes_1, fig, axes[0])
-    # fig, _ = display_bbox(bboxes_2, fig, axes[1])
+    fig, _ = display_grid(anc_pts_x_proj, anc_pts_y_proj, fig, axes[0], (anc_pts_x_proj[sp_1[0]], anc_pts_y_proj[sp_1[1]]))
+    fig, _ = display_grid(anc_pts_x_proj, anc_pts_y_proj, fig, axes[1], (anc_pts_x_proj[sp_2[0]], anc_pts_y_proj[sp_2[1]]))
+    fig, _ = display_bbox(bboxes_1, fig, axes[0])
+    fig, _ = display_bbox(bboxes_2, fig, axes[1])
     # plt.show()
 
-    #Display all images with anchor points and all boxes for all anchor points
+    # # Display all images with anchor points and all boxes for all anchor points
     # nrows, ncols = (1, 2)
     # fig, axes = plt.subplots(nrows, ncols, figsize=(16, 8))
 
@@ -182,22 +188,22 @@ def od_pipeline():
     neg_anc_1 = neg_anc_proj[anc_idx_1]
     neg_anc_2 = neg_anc_proj[anc_idx_2]
 
-    # nrows, ncols = (1, 2)
-    # fig, axes = plt.subplots(nrows, ncols, figsize=(16, 8))
+    nrows, ncols = (1, 2)
+    fig, axes = plt.subplots(nrows, ncols, figsize=(16, 8))
 
-    # fig, axes = display_img(img_data_all, fig, axes)
+    fig, axes = display_img(img_data_all, fig, axes)
 
-    # # plot groundtruth bboxes
-    # fig, _ = display_bbox(bboxes_all[0], fig, axes[0])
-    # fig, _ = display_bbox(bboxes_all[1], fig, axes[1])
+    # plot groundtruth bboxes
+    fig, _ = display_bbox(bboxes_all[0], fig, axes[0], line_width=3)
+    fig, _ = display_bbox(bboxes_all[1], fig, axes[1], line_width=3)
 
-    # # plot positive anchor boxes
-    # fig, _ = display_bbox(pos_anc_1, fig, axes[0], color='g')
-    # fig, _ = display_bbox(pos_anc_2, fig, axes[1], color='g')
+    # plot positive anchor boxes
+    fig, _ = display_bbox(pos_anc_1, fig, axes[0], color='g')
+    fig, _ = display_bbox(pos_anc_2, fig, axes[1], color='g')
 
-    # # plot negative anchor boxes
-    # fig, _ = display_bbox(neg_anc_1, fig, axes[0], color='r')
-    # fig, _ = display_bbox(neg_anc_2, fig, axes[1], color='r')
+    # plot negative anchor boxes
+    fig, _ = display_bbox(neg_anc_1, fig, axes[0], color='r')
+    fig, _ = display_bbox(neg_anc_2, fig, axes[1], color='r')
     
     # plt.show()
 
