@@ -51,7 +51,7 @@ def od_pipeline():
     )
 
     #Use pad sequence if facing any more errors with the return type of the data_loader
-    mot_custom_dataloader = DataLoader(mot_custom_dataset, batch_size=4, shuffle=True, collate_fn=custom_collate)
+    mot_custom_dataloader = DataLoader(mot_custom_dataset, batch_size=2, shuffle=True, collate_fn=custom_collate)
 
     for img_batch, class_labels_batch, bboxes_labels_batch in mot_custom_dataloader:
         img_data_all: torch.FloatTensor = img_batch
