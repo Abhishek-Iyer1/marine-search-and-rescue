@@ -174,13 +174,13 @@ def od_pipeline():
     # print(positive_anc_coords, negative_anc_coords)
 
     # project anchor coords to the image space
-    pos_anc_proj = project_bboxes(positive_anc_coords, width_scale_factor, height_scale_factor, mode='a2p')
-    neg_anc_proj = project_bboxes(negative_anc_coords, width_scale_factor, height_scale_factor, mode='a2p')
+    pos_anc_proj = project_bboxes(positive_anc_coords, width_scale_factor, height_scale_factor, mode='a2p').cpu()
+    neg_anc_proj = project_bboxes(negative_anc_coords, width_scale_factor, height_scale_factor, mode='a2p').cpu()
 
     # grab +ve and -ve anchors for each image separately
 
-    anc_idx_1 = torch.where(positive_anc_ind_sep == 0)[0]
-    anc_idx_2 = torch.where(positive_anc_ind_sep == 1)[0]
+    anc_idx_1 = torch.where(positive_anc_ind_sep == 0)[0].cpu()
+    anc_idx_2 = torch.where(positive_anc_ind_sep == 1)[0].cpu()
 
     pos_anc_1 = pos_anc_proj[anc_idx_1]
     pos_anc_2 = pos_anc_proj[anc_idx_2]
