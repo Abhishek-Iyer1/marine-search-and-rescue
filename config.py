@@ -31,8 +31,8 @@ LEARNING_RATE = 1e-3
 ROI_SIZE = (2, 2)
 N_EPOCHS = 200
 BATCH_SIZE = 2
-CONF_THRESH = 0.7
-NMS_THRESH = 0.5
+CONF_THRESH = 0.8
+NMS_THRESH = 0.3
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # GIOU Loss ---------------------------------------------------------
