@@ -213,14 +213,36 @@ def od_pipeline():
     n_classes = 6 # exclude pad idx
     roi_size = (2, 2)
 
-    # img_data_all = img_data_all.to(device)
-    # classes_all = classes_all.to(device)
-    # bboxes_all = bboxes_all.to(device)
+    img_data_all = img_data_all.to(config.DEVICE)
+    classes_all = classes_all.to(config.DEVICE)
+    bboxes_all = bboxes_all.to(config.DEVICE)
 
-    detector = TwoStageDetector(img_size, out_size, out_c, n_classes, roi_size)
+    detector = TwoStageDetector(img_size, out_size, out_c, n_classes, roi_size).to(config.DEVICE)
+    if os.path.exists("model.pt"):
+        detector.load_state_dict(torch.load("model_nano.pt", map_location=config.DEVICE))
     detector.eval()
     total_loss = detector(img_data_all, bboxes_all, classes_all)
-    proposals_final, conf_scores_final, classes_final = detector.inference(img_data_all)
+    proposals_final, conf_scores_final, classes_final, _ = detector.inference(img_data_all, conf_thresh=config.CONF_THRESH, nms_thresh=config.NMS_THRESH)
+    print(f"Total Loss: {total_loss}, Proposal Lengths: {len(proposals_final[0]), len(proposals_final[0])}")
+    
+    nrows, ncols = (1, 2)
+    fig, axes = plt.subplots(nrows, ncols, figsize=(16, 8))
+
+    fig, axes = display_img(img_data_all.cpu(), fig, axes)
+
+    # plot groundtruth bboxes
+    fig, _ = display_bbox(bboxes_all.cpu()[0], fig, axes[0], color='g')
+    fig, _ = display_bbox(bboxes_all.cpu()[1], fig, axes[1], color='g')
+
+    proposals_final[0] = project_bboxes(proposals_final[0], config.WIDTH_SCALE_FACTOR, config.HEIGHT_SCALE_FACTOR)
+    proposals_final[1] = project_bboxes(proposals_final[1], config.WIDTH_SCALE_FACTOR, config.HEIGHT_SCALE_FACTOR)
+
+    # plot predicted bboxes
+    fig, _ = display_bbox(proposals_final[0].cpu(), fig, axes[0], color='r')
+    fig, _ = display_bbox(proposals_final[1].cpu(), fig, axes[1], color='r')
+
+    plt.show()
+
 
 if __name__ == '__main__':
     od_pipeline()
