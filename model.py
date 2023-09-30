@@ -69,3 +69,66 @@ class ProposalModule(nn.Module):
         elif mode == 'eval':
             # print(f"Conf Scores Pred: {conf_scores_pred}, Reg Offsets Pred: {reg_offsets_pred}")
             return conf_scores_pred, offsets_pos
+        
+class RegionProposalNetwork(nn.Module):
+    def __init__(self, img_size, out_size, out_channels):
+        super().__init__()
+        
+        self.img_height, self.img_width = img_size
+        self.out_h, self.out_w = out_size
+        
+        # downsampling scale factor 
+        self.width_scale_factor = self.img_width // self.out_w
+        self.height_scale_factor = self.img_height // self.out_h 
+        
+        # scales and ratios for anchor boxes
+        self.anc_scales = [0.25, 0.5, 0.75, 1, 2]
+        self.anc_ratios = [0.5, 1, 1.5]
+        self.n_anc_boxes = len(self.anc_scales) * len(self.anc_ratios) * 2
+        
+        # IoU thresholds for +ve and -ve anchors
+        self.pos_thresh = 0.7
+        self.neg_thresh = 0.3
+        
+        # weights for loss
+        self.w_conf = 1
+        self.w_reg = 5
+        
+        self.feature_extractor = FeatureExtractor()
+        self.proposal_module = ProposalModule(out_channels, n_anchors=self.n_anc_boxes)
+        
+    def forward(self, images, gt_bboxes, gt_classes):
+        # print(f"Images: {images.device}, Bboxes: {gt_bboxes.device}, Classes: {gt_classes.device}")
+        batch_size = images.size(dim=0)
+        feature_map = self.feature_extractor(images).to(config.DEVICE)
+        
+        # generate anchors
+        anc_pts_x, anc_pts_y = gen_anc_centers(out_size=(self.out_h, self.out_w))
+        # print(f"Anc centers x: {anc_pts_x.shape}, Anc centers Y: {anc_pts_y.shape}")
+        anc_base = gen_anc_base(anc_pts_x, anc_pts_y, self.anc_scales, self.anc_ratios, (self.out_h, self.out_w))
+        # print(f"Anc Base: {anc_base.shape}")
+        anc_boxes_all = anc_base.repeat(batch_size, 1, 1, 1, 1)
+        # print(f"Anc Boxes All: {anc_boxes_all.shape}")
+        
+        # get positive and negative anchors amongst other things
+        # print(f"GT Bboxes: {gt_bboxes[0]}")
+        gt_bboxes_proj = project_bboxes(gt_bboxes, self.width_scale_factor, self.height_scale_factor, mode='p2a')
+        # print(f"GT Bboxes Proj: {gt_bboxes_proj[0]}")
+        # print(f"Anc Boxes: {anc_boxes_all.device}, Bboxes Projected: {gt_bboxes_proj.device}, Classes: {gt_classes.device}") 
+
+        positive_anc_ind, negative_anc_ind, GT_conf_scores, \
+        GT_offsets, GT_class_pos, positive_anc_coords, \
+        negative_anc_coords, positive_anc_ind_sep = get_req_anchors(anc_boxes_all, gt_bboxes_proj, gt_classes, self.pos_thresh, self.neg_thresh)
+        
+        # pass through the proposal module
+        # print(f"Positive Anc Ind: {positive_anc_ind}, Positive Anc Coords Length: {len(positive_anc_coords)}")
+        conf_scores_pos, conf_scores_neg, offsets_pos, proposals = self.proposal_module.forward(feature_map, positive_anc_ind, \
+                                                                                        negative_anc_ind, positive_anc_coords)
+        
+        # print(f"GT Offsets: {GT_offsets}, Offset Pos: {offsets_pos}")
+        cls_loss = calc_cls_loss(conf_scores_pos, conf_scores_neg, batch_size)
+        reg_loss = calc_bbox_reg_loss(GT_offsets, offsets_pos, batch_size)
+        # print(f"CLS Loss RPN: {cls_loss}, REG Loss RPN: {reg_loss}")
+        total_rpn_loss = self.w_conf * cls_loss + self.w_reg * reg_loss
+        
+        return total_rpn_loss, feature_map, proposals, positive_anc_ind_sep, GT_class_pos
