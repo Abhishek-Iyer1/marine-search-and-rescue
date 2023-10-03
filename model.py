@@ -177,4 +177,50 @@ class RegionProposalNetwork(nn.Module):
                 conf_scores_final.append(conf_scores_pos)
             # print(f"Proposals Final: {proposals_final[-7:-1]}")
         return proposals_final, conf_scores_final, feature_map
-    
+
+class ClassificationModule(nn.Module):
+    def __init__(self, out_channels, n_classes, roi_size, hidden_dim=512, p_dropout=0.3):
+        super().__init__()        
+        self.roi_size = roi_size
+        # hidden network
+        self.avg_pool = nn.AvgPool2d(self.roi_size)
+        self.fc = nn.Linear(out_channels, hidden_dim)
+        self.dropout = nn.Dropout(p_dropout)
+        
+        # define classification head
+        self.cls_head = nn.Linear(hidden_dim, n_classes)
+        
+    def forward(self, feature_map, proposals_list, gt_classes=None):
+        
+        if gt_classes is None:
+            mode = 'eval'
+        else:
+            mode = 'train'
+        
+        # apply roi pooling on proposals followed by avg pooling
+        roi_out = ops.roi_pool(feature_map, proposals_list, self.roi_size)
+        roi_out = self.avg_pool(roi_out)
+        
+        # flatten the output
+        roi_out = roi_out.squeeze(-1).squeeze(-1).to(config.DEVICE)
+        
+        # pass the output through the hidden network
+        out = self.fc(roi_out)
+        out = F.relu(self.dropout(out))
+        
+        # get the classification scores
+        cls_scores = self.cls_head(out)
+
+        # convert scores into probability
+        cls_probs = F.softmax(cls_scores, dim=-1)
+        # get classes with highest probability
+        classes_all = torch.argmax(cls_probs, dim=-1)
+        
+        if mode == 'eval':
+            return cls_scores
+        
+        # compute cross entropy loss
+        # print(f"Cls Scores: {cls_scores}, CLS Probs: {cls_probs}, CLS all: {classes_all}, GT Classes Long: {gt_classes.long()}")
+        cls_loss = F.cross_entropy(cls_scores, gt_classes.long())
+        
+        return cls_loss, classes_all
