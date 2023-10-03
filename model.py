@@ -132,3 +132,49 @@ class RegionProposalNetwork(nn.Module):
         total_rpn_loss = self.w_conf * cls_loss + self.w_reg * reg_loss
         
         return total_rpn_loss, feature_map, proposals, positive_anc_ind_sep, GT_class_pos
+
+    def inference(self, images, conf_thresh=0.5, nms_thresh=0):
+        with torch.no_grad():
+            batch_size = images.size(dim=0)
+            feature_map = self.feature_extractor(images)
+
+            # generate anchors
+            anc_pts_x, anc_pts_y = gen_anc_centers(out_size=(self.out_h, self.out_w))
+            # print(f"anc pts x: {anc_pts_x.shape}, anc pts y: {anc_pts_y.shape}")
+            anc_base = gen_anc_base(anc_pts_x, anc_pts_y, self.anc_scales, self.anc_ratios, (self.out_h, self.out_w)).to(config.DEVICE)
+            # print(f"anc base shape: {anc_base.shape}")
+            anc_boxes_all = anc_base.repeat(batch_size, 1, 1, 1, 1)
+            # print(f"Anc boxes example before generate proposals method: {anc_boxes_all[0][-7:-1]}") NO PROBLEM WITH ANC 0<x<+12
+            anc_boxes_flat = anc_boxes_all.reshape(batch_size, -1, 4)
+
+            # get conf scores and offsets
+            conf_scores_pred, offsets_pred = self.proposal_module.forward(feature_map)
+            conf_scores_pred = conf_scores_pred.reshape(batch_size, -1)
+            offsets_pred = offsets_pred.reshape(batch_size, -1, 4)
+            # print(f"Anc Boxes Flat: {anc_boxes_flat.shape}, Offsets Pred RPN: {offsets_pred.shape}")
+
+            # filter out proposals based on conf threshold and nms threshold for each image
+            proposals_final = []
+            conf_scores_final = []
+            for i in range(batch_size):
+                conf_scores = torch.sigmoid(conf_scores_pred[i])
+                # print(conf_thresh, conf_scores)
+                offsets = offsets_pred[i]
+                anc_boxes = anc_boxes_flat[i]
+                proposals = generate_proposals(anc_boxes, offsets)
+                # print(f"Proposals after generation: {proposals}")
+                # filter based on confidence threshold
+                conf_idx = torch.where(conf_scores >= conf_thresh)[0]
+                conf_scores_pos = conf_scores[conf_idx]
+                proposals_pos = proposals[conf_idx]
+                # print(f"Proposals Pos: {proposals_pos.shape}")
+                # filter based on nms threshold
+                nms_idx = ops.nms(proposals_pos, conf_scores_pos, nms_thresh)
+                conf_scores_pos = conf_scores_pos[nms_idx]
+                proposals_pos = proposals_pos[nms_idx]
+
+                proposals_final.append(proposals_pos)
+                conf_scores_final.append(conf_scores_pos)
+            # print(f"Proposals Final: {proposals_final[-7:-1]}")
+        return proposals_final, conf_scores_final, feature_map
+    
