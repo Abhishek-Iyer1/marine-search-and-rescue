@@ -224,3 +224,32 @@ class ClassificationModule(nn.Module):
         cls_loss = F.cross_entropy(cls_scores, gt_classes.long())
         
         return cls_loss, classes_all
+    
+class TwoStageDetector(nn.Module):
+    def __init__(self, img_size, out_size, out_channels, n_classes, roi_size):
+        super().__init__() 
+        self.rpn = RegionProposalNetwork(img_size, out_size, out_channels).to(device=config.DEVICE)
+        self.classifier = ClassificationModule(out_channels, n_classes, roi_size).to(device=config.DEVICE)
+        
+    def forward(self, images, gt_bboxes, gt_classes):
+        # print(f"Images: {images.device}, gt_bboxes: {gt_bboxes.device}, gt_classes: {gt_classes.device}")
+        # print(f"TWO stage detector gt classes: {gt_classes}")
+        total_rpn_loss, feature_map, proposals, \
+        positive_anc_ind_sep, GT_class_pos = self.rpn.forward(images, gt_bboxes, gt_classes)
+        # print(f"gt_class: {gt_classes}, gt_classes_pos: {GT_class_pos}")
+        # print(f"All proposals {proposals.shape}")
+        # get separate proposals for each sample
+        pos_proposals_list = []
+        batch_size = images.size(dim=0)
+        for idx in range(batch_size):
+            proposal_idxs = torch.where(positive_anc_ind_sep == idx)[0]
+            proposals_sep = proposals[proposal_idxs].detach().clone()
+            pos_proposals_list.append(proposals_sep)
+        
+        # print(f"Length of Positive Proposals List: {len(pos_proposals_list[0]), len(pos_proposals_list[1]), len(pos_proposals_list[2])}")
+        cls_loss, classes_all = self.classifier.forward(feature_map, pos_proposals_list, GT_class_pos)
+        # display_inference(images, pos_proposals_list, classes_all, gt_bboxes, gt_classes, config.WIDTH_SCALE_FACTOR, config.HEIGHT_SCALE_FACTOR)
+        # print(f"total_rpn_loss: {total_rpn_loss}, cls_loss: {cls_loss}")
+        total_loss = cls_loss + total_rpn_loss
+        
+        return total_loss
