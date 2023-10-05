@@ -253,3 +253,26 @@ class TwoStageDetector(nn.Module):
         total_loss = cls_loss + total_rpn_loss
         
         return total_loss
+    
+    def inference(self, images, conf_thresh=0.7, nms_thresh=0.5):
+        batch_size = images.size(dim=0)
+        proposals_final, conf_scores_final, feature_map = self.rpn.inference(images, conf_thresh, nms_thresh)
+        print(f"No. Of Proposals after RPN: {len(proposals_final[0])}")
+        # print(f"Example: {proposals_final[0][-7:-1]}")
+        cls_scores = self.classifier.forward(feature_map, proposals_final)
+        
+        # convert scores into probability
+        cls_probs = F.softmax(cls_scores, dim=-1)
+        # get classes with highest probability
+        classes_all = torch.argmax(cls_probs, dim=-1)
+        
+        classes_final = []
+        # slice classes to map to their corresponding image
+        c = 0
+        for i in range(batch_size):
+            n_proposals = len(proposals_final[i]) # get the number of proposals for each image
+            classes_final.append(classes_all[c: c+n_proposals])
+            c += n_proposals
+        
+        # print(f"Proposals Shape: {len(proposals_final)}, Classes Shape: {len(classes_final), len(classes_final[0]), classes_final[0]}")
+        return proposals_final, conf_scores_final, classes_final, cls_scores
